@@ -20,6 +20,7 @@ func homePage(responseWriter http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case "GET":
 		http.ServeFile(responseWriter, request, "./templates/form.html")
+
 	case "POST":
 		if err := request.ParseForm(); err != nil {
 			fmt.Fprintf(responseWriter, "ParseForm() err: %v", err)
