@@ -4,9 +4,44 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
+
+	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
+
+const (
+	hosts      = "localhost:27017"
+	database   = "monGo"
+	username   = ""
+	password   = ""
+	collection = "articles"
+)
+
+func initialiseMongo() (session *mgo.Session){
+
+	info := &mgo.DialInfo{
+		Addrs:    []string{hosts},
+		Timeout:  60 * time.Second,
+		Database: database,
+		Username: username,
+		Password: password,
+	}
+
+	session, err := mgo.DialWithInfo(info)
+	if err != nil {
+		panic(err)
+	}
+
+	return
+}
+
+type MongoSession struct {
+	session *mgo.Session
+}
 
 type Article struct {
 	Title string
@@ -14,7 +49,7 @@ type Article struct {
 	Content string
 }
 
-type Articles []Article
+var mongoSession = MongoSession{}
 
 func homePage(responseWriter http.ResponseWriter, request *http.Request) {
 	switch request.Method {
@@ -45,16 +80,49 @@ func homePage(responseWriter http.ResponseWriter, request *http.Request) {
 }
 
 func allArticles(responseWriter http.ResponseWriter, request *http.Request) {
-	articles := Articles{
-		Article{Title:"Mock Title", Desc:"Mock Desc", Content:"Mock Content"},
-	}
+	responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
 
-	fmt.Println("Endpoint invoked: All Articles Endpoint")
-	json.NewEncoder(responseWriter).Encode(articles)
+	collection := mongoSession.session.DB(database).C(collection)
+
+	results := []Article{}
+	collection.Find(bson.M{"title": bson.RegEx{"", ""}}).All(&results)
+	jsonString, err := json.Marshal(results)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Fprint(responseWriter, string(jsonString))
 }
 
 func saveArticle(responseWriter http.ResponseWriter, request *http.Request) {
-	fmt.Fprintf(responseWriter, "Save Article invoked...")
+	collection := mongoSession.session.DB(database).C(collection)
+
+	body, err := ioutil.ReadAll(request.Body)
+	defer request.Body.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	var article Article
+	err = json.Unmarshal(body, &article)
+	if err != nil {
+		http.Error(responseWriter, err.Error(), 500)
+		return
+	}
+
+	err = collection.Insert(article)
+	if err != nil {
+		panic(err)
+	}
+
+	jsonString, err := json.Marshal(article)
+	if err != nil {
+		http.Error(responseWriter, err.Error(), 500)
+		return
+	}
+
+	responseWriter.Header().Set("content-type", "application/json")
+
+	responseWriter.Write(jsonString)
 }
 
 func handleRequests() {
@@ -64,9 +132,10 @@ func handleRequests() {
 	myRouter.HandleFunc("/articles", allArticles).Methods("GET")
 	myRouter.HandleFunc("/articles", saveArticle).Methods("POST")
 
-	log.Fatal(http.ListenAndServe(":8081", myRouter))
+	log.Fatal(http.ListenAndServe(":8083", myRouter))
 }
 
 func main() {
+	mongoSession.session = initialiseMongo()
 	handleRequests()
 }
