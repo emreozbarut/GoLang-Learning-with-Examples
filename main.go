@@ -178,7 +178,7 @@ func handleRequests() {
 	myRouter.HandleFunc("/update", updatePage)
 	myRouter.HandleFunc("/articles", allArticles).Methods("GET")
 	myRouter.HandleFunc("/articles", saveArticle).Methods("POST")
-	myRouter.HandleFunc("/articles", updateArticle).Methods("PUT")
+	myRouter.HandleFunc("/update/article", updateArticle).Methods("POST")
 
 	log.Fatal(http.ListenAndServe(":8083", myRouter))
 }
