@@ -78,6 +78,34 @@ func homePage(responseWriter http.ResponseWriter, request *http.Request) {
 	}
 }
 
+func updatePage(responseWriter http.ResponseWriter, request *http.Request) {
+	switch request.Method {
+	case "GET":
+		http.ServeFile(responseWriter, request, "./templates/update.html")
+
+	case "POST":
+		if err := request.ParseForm(); err != nil {
+			fmt.Fprintf(responseWriter, "ParseForm() err: %v", err)
+			return
+		}
+		fmt.Fprintf(responseWriter, "Post from website! r.PostFrom = %v\n", request.PostForm)
+
+		article := Article{
+			request.FormValue("title"),
+			request.FormValue("description"),
+			request.FormValue("content")}
+
+		fmt.Fprintf(responseWriter, "Title: %s\n", article.Title)
+		fmt.Fprintf(responseWriter, "Description: %s\n", article.Desc)
+		fmt.Fprintf(responseWriter, "Content: %s\n", article.Content)
+
+		json.NewEncoder(responseWriter).Encode(article)
+
+	default:
+		fmt.Fprintf(responseWriter, "POST and GET methods are included to API scope...")
+	}
+}
+
 func allArticles(responseWriter http.ResponseWriter, request *http.Request) {
 	responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -90,6 +118,33 @@ func allArticles(responseWriter http.ResponseWriter, request *http.Request) {
 		panic(err)
 	}
 	fmt.Fprint(responseWriter, string(jsonString))
+}
+
+func updateArticle(responseWriter http.ResponseWriter, request *http.Request) {
+	collection := mongoSession.session.DB(database).C(collection)
+
+	var updateVar = request.FormValue("findByTitle")
+
+	article := Article{
+		request.FormValue("title"),
+		request.FormValue("description"),
+		request.FormValue("content")}
+
+	err := collection.Update(bson.M{"title": updateVar}, article)
+	if err != nil {
+		panic(err)
+	}
+
+	jsonString, err := json.Marshal(article)
+	if err != nil {
+		http.Error(responseWriter, err.Error(), 500)
+		return
+	}
+
+	responseWriter.Header().Set("content-type", "application/json")
+
+	responseWriter.Write(jsonString)
+
 }
 
 func saveArticle(responseWriter http.ResponseWriter, request *http.Request) {
@@ -120,8 +175,10 @@ func handleRequests() {
 	myRouter := mux.NewRouter().StrictSlash(true)
 
 	myRouter.HandleFunc("/", homePage)
+	myRouter.HandleFunc("/update", updatePage)
 	myRouter.HandleFunc("/articles", allArticles).Methods("GET")
 	myRouter.HandleFunc("/articles", saveArticle).Methods("POST")
+	myRouter.HandleFunc("/articles", updateArticle).Methods("PUT")
 
 	log.Fatal(http.ListenAndServe(":8083", myRouter))
 }
