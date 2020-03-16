@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -96,20 +95,12 @@ func allArticles(responseWriter http.ResponseWriter, request *http.Request) {
 func saveArticle(responseWriter http.ResponseWriter, request *http.Request) {
 	collection := mongoSession.session.DB(database).C(collection)
 
-	body, err := ioutil.ReadAll(request.Body)
-	defer request.Body.Close()
-	if err != nil {
-		panic(err)
-	}
+	article := Article{
+		request.FormValue("title"),
+		request.FormValue("description"),
+		request.FormValue("content")}
 
-	var article Article
-	err = json.Unmarshal(body, &article)
-	if err != nil {
-		http.Error(responseWriter, err.Error(), 500)
-		return
-	}
-
-	err = collection.Insert(article)
+	err := collection.Insert(article)
 	if err != nil {
 		panic(err)
 	}
