@@ -106,6 +106,34 @@ func updatePage(responseWriter http.ResponseWriter, request *http.Request) {
 	}
 }
 
+func deletePage(responseWriter http.ResponseWriter, request *http.Request) {
+	switch request.Method {
+	case "GET":
+		http.ServeFile(responseWriter, request, "./templates/delete.html")
+
+	case "POST":
+		if err := request.ParseForm(); err != nil {
+			fmt.Fprintf(responseWriter, "ParseForm() err: %v", err)
+			return
+		}
+		fmt.Fprintf(responseWriter, "Post from website! r.PostFrom = %v\n", request.PostForm)
+
+		article := Article{
+			request.FormValue("title"),
+			request.FormValue("description"),
+			request.FormValue("content")}
+
+		fmt.Fprintf(responseWriter, "Title: %s\n", article.Title)
+		fmt.Fprintf(responseWriter, "Description: %s\n", article.Desc)
+		fmt.Fprintf(responseWriter, "Content: %s\n", article.Content)
+
+		json.NewEncoder(responseWriter).Encode(article)
+
+	default:
+		fmt.Fprintf(responseWriter, "POST and GET methods are included to API scope...")
+	}
+}
+
 func allArticles(responseWriter http.ResponseWriter, request *http.Request) {
 	responseWriter.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -171,14 +199,28 @@ func saveArticle(responseWriter http.ResponseWriter, request *http.Request) {
 	responseWriter.Write(jsonString)
 }
 
+func deleteArticle(responseWriter http.ResponseWriter, request *http.Request) {
+	collection := mongoSession.session.DB(database).C(collection)
+
+	var deleteVar = request.FormValue("title")
+
+	err := collection.Remove(bson.M{"title": deleteVar})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Fprintf(responseWriter, "Delete successful with Title: " + deleteVar)
+}
+
 func handleRequests() {
 	myRouter := mux.NewRouter().StrictSlash(true)
 
 	myRouter.HandleFunc("/", homePage)
 	myRouter.HandleFunc("/update", updatePage)
+	myRouter.HandleFunc("/delete", deletePage)
 	myRouter.HandleFunc("/articles", allArticles).Methods("GET")
 	myRouter.HandleFunc("/articles", saveArticle).Methods("POST")
 	myRouter.HandleFunc("/update/article", updateArticle).Methods("POST")
+	myRouter.HandleFunc("/delete/article", deleteArticle).Methods("POST")
 
 	log.Fatal(http.ListenAndServe(":8083", myRouter))
 }
